@@ -2,38 +2,171 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PONG</title>
 
-<!-- Google Font -->
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800&display=swap" rel="stylesheet">
 
 <style>
-html,body{
-  margin:0;
-  padding:0;
-  background:black;
-  overflow:hidden;
-  font-family:'Orbitron',sans-serif;
-}
+html,body{margin:0;background:black;font-family:'Orbitron',sans-serif}
+canvas{display:block;margin:auto}
 
-canvas{
-  display:block;
-  margin:auto;
-  background:black;
-}
-
-/* ===== MENU ===== */
-#menu{
-  position:fixed;
-  inset:0;
-  display:flex;
+.menu{
+  position:fixed;inset:0;display:none;
+  justify-content:center;align-items:center;
   flex-direction:column;
-  justify-content:center;
-  align-items:center;
-  background:
-    repeating-linear-gradient(
-      45deg,
+  background:repeating-linear-gradient(
+    45deg,#ff69b4 0,#ff69b4 20px,
+    silver 20px,silver 40px
+  );
+}
+
+h1{
+  font-size:64px;letter-spacing:12px;
+  background:linear-gradient(90deg,silver,hotpink,silver);
+  -webkit-background-clip:text;
+  -webkit-text-fill-color:transparent;
+  text-shadow:0 0 20px hotpink;
+}
+
+button{font-family:inherit;margin:6px;padding:8px 16px}
+
+.panel{
+  background:rgba(255,255,255,.85);
+  padding:15px;border-radius:12px
+}
+label{display:block;margin:6px 0}
+</style>
+</head>
+
+<body>
+
+<!-- MAIN MENU -->
+<div id="mainMenu" class="menu" style="display:flex">
+  <h1>PONG</h1>
+  <button onclick="startGame()">START</button>
+  <button onclick="openSettings()">SETTINGS</button>
+</div>
+
+<!-- PAUSE MENU -->
+<div id="pauseMenu" class="menu">
+  <h1>PAUSED</h1>
+  <button onclick="resume()">RESUME</button>
+  <button onclick="restart()">RESTART</button>
+  <button onclick="openSettings()">SETTINGS</button>
+  <button onclick="backToMain()">MAIN MENU</button>
+</div>
+
+<!-- SETTINGS -->
+<div id="settingsMenu" class="menu">
+  <h1>SETTINGS</h1>
+  <div class="panel">
+    <label>Left Paddle <input type="color" id="pL" value="#ff69b4"></label>
+    <label>Right Paddle <input type="color" id="pR" value="#c0c0c0"></label>
+    <label>Ball <input type="color" id="bC" value="#ffffff"></label>
+    <label>Score <input type="number" id="score" value="7"></label>
+    <label>Time <input type="number" id="time" value="60"></label>
+    <label><input type="checkbox" id="sound" checked> Sound</label>
+    <label><input type="checkbox" id="ai" checked> AI Opponent</label>
+  </div>
+  <button onclick="applySettings()">APPLY</button>
+  <button onclick="resume()">BACK</button>
+</div>
+
+<canvas id="game" width="480" height="640"></canvas>
+
+<script>
+const c=document.getElementById("game"),ctx=c.getContext("2d");
+const PH=80,PW=10;
+let state="menu",timer=60,maxScore=7,aiOn=true,soundOn=true;
+let colors={l:"#ff69b4",r:"#c0c0c0",b:"#fff"};
+let L,R,B;
+
+function reset(){
+  L={x:10,y:280,s:0};
+  R={x:460,y:280,s:0};
+  B={x:240,y:320,vx:4,vy:4,r:6};
+}
+reset();
+
+const beep=f=>{
+  if(!soundOn)return;
+  const a=new AudioContext(),o=a.createOscillator(),g=a.createGain();
+  o.frequency.value=f;o.connect(g);g.connect(a.destination);
+  o.start();g.gain.exponentialRampToValueAtTime(.001,a.currentTime+.15);
+};
+
+function startGame(){
+  reset();state="play";
+  hideAll();beep(800);
+}
+function restart(){reset();timer=maxTime;state="play";hideAll()}
+function resume(){state="play";hideAll()}
+function backToMain(){state="menu";show(mainMenu)}
+function openSettings(){state="settings";show(settingsMenu)}
+
+function applySettings(){
+  colors.l=pL.value;colors.r=pR.value;colors.b=bC.value;
+  maxScore=+score.value;timer=+time.value;maxTime=timer;
+  soundOn=sound.checked;aiOn=ai.checked;
+  resume();
+}
+
+function show(m){hideAll();m.style.display="flex"}
+function hideAll(){document.querySelectorAll(".menu").forEach(m=>m.style.display="none")}
+
+let maxTime=timer;
+
+document.addEventListener("keydown",e=>{
+  if(e.key==="Escape"&&state==="play"){state="pause";show(pauseMenu)}
+  if(e.key==="r"&&state==="play")restart();
+});
+
+c.addEventListener("touchmove",e=>{
+  const t=e.touches[0],r=c.getBoundingClientRect();
+  const y=t.clientY-r.top;
+  if(t.clientX<r.width/2)L.y=y-PH/2;
+  else if(!aiOn)R.y=y-PH/2;
+});
+
+setInterval(()=>{if(state==="play")timer--},1000);
+
+function update(){
+  if(state!=="play")return;
+
+  if(aiOn){
+    R.y+=((B.y-PH/2)-R.y)*0.08;
+  }
+
+  B.x+=B.vx;B.y+=B.vy;
+
+  if(B.y<B.r||B.y>640-B.r){B.vy*=-1;beep(300)}
+  if(B.x<20&&B.y>L.y&&B.y<L.y+PH){B.vx*=-1;beep(600)}
+  if(B.x>460&&B.y>R.y&&B.y<R.y+PH){B.vx*=-1;beep(600)}
+
+  if(B.x<0){R.s++;reset()}
+  if(B.x>480){L.s++;reset()}
+
+  if(L.s>=maxScore||R.s>=maxScore||timer<=0){
+    backToMain();
+  }
+}
+
+function draw(){
+  ctx.fillStyle="black";ctx.fillRect(0,0,480,640);
+  ctx.fillStyle=colors.l;ctx.fillRect(L.x,L.y,PW,PH);
+  ctx.fillStyle=colors.r;ctx.fillRect(R.x,R.y,PW,PH);
+  ctx.beginPath();ctx.arc(B.x,B.y,B.r,0,Math.PI*2);
+  ctx.fillStyle=colors.b;ctx.fill();
+  ctx.fillStyle="white";
+  ctx.fillText(`${L.s}  ${R.s}`,210,40);
+  ctx.fillText(`TIME ${timer}`,190,60);
+}
+
+(function loop(){update();draw();requestAnimationFrame(loop)})();
+</script>
+</body>
+</html>
       #ff69b4 0px,
       #ff69b4 20px,
       silver 20px,
