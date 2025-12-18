@@ -1,235 +1,213 @@
 <!DOCTYPE html>
-<!--
-  A simple, customizable Pong game that runs entirely in a web browser.
-
-  Features:
-    • Adjustable paddle and ball colors via color‑picker inputs.
-    • Optional trail effect behind the ball (toggle via checkbox).
-    • Support for keyboard controls (W/S and arrow keys) and touch controls for mobile devices.
-
-  To play the game, open this file in any modern web browser. On a phone you can
-  upload the file to a web server or email it to yourself and open it in Safari;
-  add it to your home screen to make it behave like an app.
--->
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Customizable Pong</title>
-  <style>
-    /* Basic styling to centre the canvas and overlay controls */
-    body {
-      margin: 0;
-      background: #000;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      height: 100vh;
-      color: #fff;
-      font-family: sans-serif;
-    }
-    #controls {
-      position: absolute;
-      top: 10px;
-      left: 10px;
-      z-index: 10;
-      background: rgba(0,0,0,0.5);
-      padding: 5px;
-      border-radius: 4px;
-    }
-    #controls label {
-      display: block;
-      margin-bottom: 4px;
-      font-size: 12px;
-    }
-    canvas {
-      background: #222;
-      border: 1px solid #444;
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>PONG</title>
+
+<!-- Google Font -->
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800&display=swap" rel="stylesheet">
+
+<style>
+html,body{
+  margin:0;
+  padding:0;
+  background:black;
+  overflow:hidden;
+  font-family:'Orbitron',sans-serif;
+}
+
+canvas{
+  display:block;
+  margin:auto;
+  background:black;
+}
+
+/* ===== MENU ===== */
+#menu{
+  position:fixed;
+  inset:0;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  align-items:center;
+  background:
+    repeating-linear-gradient(
+      45deg,
+      #ff69b4 0px,
+      #ff69b4 20px,
+      silver 20px,
+      silver 40px
+    );
+}
+
+#title{
+  font-size:64px;
+  letter-spacing:12px;
+  color:#ff69b4;
+  text-shadow:
+    0 0 10px silver,
+    0 0 25px hotpink;
+  background:linear-gradient(90deg, silver, hotpink, silver);
+  -webkit-background-clip:text;
+  -webkit-text-fill-color:transparent;
+  margin-bottom:40px;
+}
+
+#start{
+  font-size:20px;
+  color:white;
+  animation:blink 1s infinite;
+}
+
+@keyframes blink{
+  0%,50%,100%{opacity:1}
+  25%,75%{opacity:0}
+}
+
+#options{
+  margin-top:30px;
+  color:black;
+  background:rgba(255,255,255,0.8);
+  padding:15px 25px;
+  border-radius:12px;
+}
+
+button{
+  font-family:inherit;
+  font-size:14px;
+  padding:6px 12px;
+}
+</style>
 </head>
+
 <body>
-  <!-- Control panel for adjusting colours and toggling the trail -->
-  <div id="controls">
-    <label>Paddle Left Colour <input type="color" id="leftColor" value="#00ff00"></label>
-    <label>Paddle Right Colour <input type="color" id="rightColor" value="#00ff00"></label>
-    <label>Ball Colour <input type="color" id="ballColor" value="#ffffff"></label>
-    <label><input type="checkbox" id="trail" checked> Ball trail effect</label>
+
+<div id="menu">
+  <div id="title">PONG</div>
+  <div id="start">PRESS X TO START</div>
+
+  <div id="options">
+    <label>
+      <input type="checkbox" id="soundToggle" checked>
+      Sound ON
+    </label><br><br>
+    First to <b>7</b> points<br>
+    Match time: <b>60s</b>
   </div>
-  <!-- The game canvas -->
-  <canvas id="game"></canvas>
-  <script>
-    // Grab DOM references for canvas and controls
-    const canvas = document.getElementById('game');
-    const ctx = canvas.getContext('2d');
-    const controls = {
-      leftColor: document.getElementById('leftColor'),
-      rightColor: document.getElementById('rightColor'),
-      ballColor: document.getElementById('ballColor'),
-      trail: document.getElementById('trail')
-    };
+</div>
 
-    // Set canvas dimensions – adjust here if you want a larger play field
-    const WIDTH = 600;
-    const HEIGHT = 400;
-    canvas.width = WIDTH;
-    canvas.height = HEIGHT;
+<canvas id="game" width="480" height="640"></canvas>
 
-    // Game state variables
-    const paddleHeight = 80;
-    const paddleWidth = 10;
-    let leftY = HEIGHT / 2 - paddleHeight / 2;
-    let rightY = HEIGHT / 2 - paddleHeight / 2;
-    let ballX = WIDTH / 2;
-    let ballY = HEIGHT / 2;
-    let ballVX = 4;
-    let ballVY = 3;
-    let leftScore = 0;
-    let rightScore = 0;
-    const trailPositions = [];
-    const trailMax = 15;
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
 
-    // Keyboard input tracking
-    const keys = {};
-    document.addEventListener('keydown', e => {
-      keys[e.key] = true;
-    });
-    document.addEventListener('keyup', e => {
-      keys[e.key] = false;
-    });
+let state="menu";
+let soundOn=true;
+let timer=60;
+let maxScore=7;
 
-    // Utility: convert a hex colour string to an RGBA string with given alpha
-    function hexToRGBA(hex, alpha) {
-      const cleanHex = hex.replace('#', '');
-      const value = parseInt(cleanHex, 16);
-      const r = (value >> 16) & 255;
-      const g = (value >> 8) & 255;
-      const b = value & 255;
-      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-    }
+const paddleH=80,paddleW=10;
+let left={x:10,y:280,score:0};
+let right={x:460,y:280,score:0};
+let ball={x:240,y:320,vx:4,vy:4,r:6};
 
-    // Reset the ball to the centre with randomised direction
-    function resetBall() {
-      ballX = WIDTH / 2;
-      ballY = HEIGHT / 2;
-      // Randomly flip direction
-      ballVX = 4 * (Math.random() > 0.5 ? 1 : -1);
-      ballVY = 3 * (Math.random() > 0.5 ? 1 : -1);
-      trailPositions.length = 0;
-    }
+const beep=(freq=440)=>{
+  if(!soundOn) return;
+  const a=new AudioContext();
+  const o=a.createOscillator();
+  const g=a.createGain();
+  o.connect(g); g.connect(a.destination);
+  o.frequency.value=freq;
+  o.start();
+  g.gain.exponentialRampToValueAtTime(0.0001,a.currentTime+0.15);
+};
 
-    // Main game loop
-    function draw() {
-      // Paddle movement speed
-      const paddleSpeed = 5;
-      // Keyboard controls – W/S move left paddle, arrows move right paddle
-      if (keys['w'] || keys['W']) leftY -= paddleSpeed;
-      if (keys['s'] || keys['S']) leftY += paddleSpeed;
-      if (keys['ArrowUp']) rightY -= paddleSpeed;
-      if (keys['ArrowDown']) rightY += paddleSpeed;
-      // Clamp paddles to the play area
-      leftY = Math.max(0, Math.min(HEIGHT - paddleHeight, leftY));
-      rightY = Math.max(0, Math.min(HEIGHT - paddleHeight, rightY));
+function resetBall(){
+  ball.x=240; ball.y=320;
+  ball.vx*=-1;
+}
 
-      // Move the ball
-      ballX += ballVX;
-      ballY += ballVY;
-      // Bounce off top and bottom
-      if (ballY < 0 || ballY > HEIGHT) {
-        ballVY = -ballVY;
-      }
-      // Bounce off left paddle or score
-      if (ballX < paddleWidth + 10) {
-        if (ballY > leftY && ballY < leftY + paddleHeight) {
-          ballVX = -ballVX;
-          ballX = paddleWidth + 10;
-        } else {
-          rightScore++;
-          resetBall();
-        }
-      }
-      // Bounce off right paddle or score
-      if (ballX > WIDTH - paddleWidth - 10) {
-        if (ballY > rightY && ballY < rightY + paddleHeight) {
-          ballVX = -ballVX;
-          ballX = WIDTH - paddleWidth - 10;
-        } else {
-          leftScore++;
-          resetBall();
-        }
-      }
+function startGame(){
+  document.getElementById("menu").style.display="none";
+  state="play";
+  left.score=right.score=0;
+  timer=60;
+}
 
-      // Record trail positions for fading effect
-      if (controls.trail.checked) {
-        trailPositions.push({ x: ballX, y: ballY });
-        if (trailPositions.length > trailMax) {
-          trailPositions.shift();
-        }
-      } else {
-        trailPositions.length = 0;
-      }
+document.addEventListener("keydown",e=>{
+  if(state==="menu" && e.key.toLowerCase()==="x"){
+    beep(880); startGame();
+  }
+  if(e.key==="p") state=state==="play"?"pause":"play";
+});
 
-      // Clear or fade the background
-      if (controls.trail.checked) {
-        // Draw a semi‑transparent black rectangle to slowly fade previous frames
-        ctx.fillStyle = 'rgba(0,0,0,0.25)';
-        ctx.fillRect(0, 0, WIDTH, HEIGHT);
-      } else {
-        ctx.clearRect(0, 0, WIDTH, HEIGHT);
-      }
+canvas.addEventListener("touchmove",e=>{
+  const t=e.touches[0];
+  const rect=canvas.getBoundingClientRect();
+  const y=t.clientY-rect.top;
+  if(t.clientX<rect.width/2) left.y=y-paddleH/2;
+  else right.y=y-paddleH/2;
+});
 
-      // Draw the trail behind the ball
-      if (controls.trail.checked) {
-        for (let i = 0; i < trailPositions.length; i++) {
-          const pos = trailPositions[i];
-          const alpha = (i + 1) / trailPositions.length;
-          ctx.fillStyle = hexToRGBA(controls.ballColor.value, alpha * 0.6);
-          ctx.beginPath();
-          ctx.arc(pos.x, pos.y, 6, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      }
+document.getElementById("soundToggle").onchange=e=>{
+  soundOn=e.target.checked;
+};
 
-      // Draw paddles
-      ctx.fillStyle = controls.leftColor.value;
-      ctx.fillRect(10, leftY, paddleWidth, paddleHeight);
-      ctx.fillStyle = controls.rightColor.value;
-      ctx.fillRect(WIDTH - paddleWidth - 10, rightY, paddleWidth, paddleHeight);
-      // Draw the ball
-      ctx.fillStyle = controls.ballColor.value;
-      ctx.beginPath();
-      ctx.arc(ballX, ballY, 8, 0, Math.PI * 2);
-      ctx.fill();
-      // Draw scores
-      ctx.fillStyle = '#fff';
-      ctx.font = '20px sans-serif';
-      ctx.fillText(leftScore, WIDTH / 4, 30);
-      ctx.fillText(rightScore, WIDTH * 3 / 4, 30);
+function update(){
+  if(state!=="play") return;
 
-      // Schedule next frame
-      requestAnimationFrame(draw);
-    }
+  ball.x+=ball.vx;
+  ball.y+=ball.vy;
 
-    // Support for touch controls: move paddles with finger
-    canvas.addEventListener('touchmove', function (e) {
-      const rect = canvas.getBoundingClientRect();
-      for (const t of e.touches) {
-        const x = t.clientX - rect.left;
-        const y = t.clientY - rect.top;
-        if (x < WIDTH / 2) {
-          leftY = y - paddleHeight / 2;
-          leftY = Math.max(0, Math.min(HEIGHT - paddleHeight, leftY));
-        } else {
-          rightY = y - paddleHeight / 2;
-          rightY = Math.max(0, Math.min(HEIGHT - paddleHeight, rightY));
-        }
-      }
-      e.preventDefault();
-    }, { passive: false });
+  if(ball.y<ball.r||ball.y>640-ball.r){
+    ball.vy*=-1; beep(300);
+  }
 
-    // Start the game loop
-    resetBall();
-    draw();
-  </script>
+  if(ball.x<20 && ball.y>left.y && ball.y<left.y+paddleH){
+    ball.vx*=-1; beep(600);
+  }
+  if(ball.x>460 && ball.y>right.y && ball.y<right.y+paddleH){
+    ball.vx*=-1; beep(600);
+  }
+
+  if(ball.x<0){ right.score++; resetBall(); beep(200); }
+  if(ball.x>480){ left.score++; resetBall(); beep(200); }
+
+  if(left.score>=maxScore||right.score>=maxScore||timer<=0){
+    state="menu";
+    document.getElementById("menu").style.display="flex";
+  }
+}
+
+function draw(){
+  ctx.fillStyle="black";
+  ctx.fillRect(0,0,480,640);
+
+  ctx.fillStyle="hotpink";
+  ctx.fillRect(left.x,left.y,paddleW,paddleH);
+  ctx.fillStyle="silver";
+  ctx.fillRect(right.x,right.y,paddleW,paddleH);
+
+  ctx.beginPath();
+  ctx.arc(ball.x,ball.y,ball.r,0,Math.PI*2);
+  ctx.fillStyle="white";
+  ctx.fill();
+
+  ctx.fillStyle="white";
+  ctx.fillText(`${left.score}  ${right.score}`,200,40);
+  ctx.fillText(`TIME ${timer}`,190,60);
+}
+
+setInterval(()=>{
+  if(state==="play") timer--;
+},1000);
+
+(function loop(){
+  update(); draw();
+  requestAnimationFrame(loop);
+})();
+</script>
 </body>
 </html>
