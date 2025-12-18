@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<!--
+  A simple, customizable Pong game that runs entirely in a web browser.
+
+  Features:
+    • Adjustable paddle and ball colors via color‑picker inputs.
+    • Optional trail effect behind the ball (toggle via checkbox).
+    • Support for keyboard controls (W/S and arrow keys) and touch controls for mobile devices.
+
+  To play the game, open this file in any modern web browser. On a phone you can
+  upload the file to a web server or email it to yourself and open it in Safari;
+  add it to your home screen to make it behave like an app.
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Customizable Pong</title>
+  <style>
+    /* Basic styling to centre the canvas and overlay controls */
+    body {
+      margin: 0;
+      background: #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      color: #fff;
+      font-family: sans-serif;
+    }
+    #controls {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 10;
+      background: rgba(0,0,0,0.5);
+      padding: 5px;
+      border-radius: 4px;
+    }
+    #controls label {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 12px;
+    }
+    canvas {
+      background: #222;
+      border: 1px solid #444;
+    }
+  </style>
+</head>
+<body>
+  <!-- Control panel for adjusting colours and toggling the trail -->
+  <div id="controls">
+    <label>Paddle Left Colour <input type="color" id="leftColor" value="#00ff00"></label>
+    <label>Paddle Right Colour <input type="color" id="rightColor" value="#00ff00"></label>
+    <label>Ball Colour <input type="color" id="ballColor" value="#ffffff"></label>
+    <label><input type="checkbox" id="trail" checked> Ball trail effect</label>
+  </div>
+  <!-- The game canvas -->
+  <canvas id="game"></canvas>
+  <script>
+    // Grab DOM references for canvas and controls
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+    const controls = {
+      leftColor: document.getElementById('leftColor'),
+      rightColor: document.getElementById('rightColor'),
+      ballColor: document.getElementById('ballColor'),
+      trail: document.getElementById('trail')
+    };
+
+    // Set canvas dimensions – adjust here if you want a larger play field
+    const WIDTH = 600;
+    const HEIGHT = 400;
+    canvas.width = WIDTH;
+    canvas.height = HEIGHT;
+
+    // Game state variables
+    const paddleHeight = 80;
+    const paddleWidth = 10;
+    let leftY = HEIGHT / 2 - paddleHeight / 2;
+    let rightY = HEIGHT / 2 - paddleHeight / 2;
+    let ballX = WIDTH / 2;
+    let ballY = HEIGHT / 2;
+    let ballVX = 4;
+    let ballVY = 3;
+    let leftScore = 0;
+    let rightScore = 0;
+    const trailPositions = [];
+    const trailMax = 15;
+
+    // Keyboard input tracking
+    const keys = {};
+    document.addEventListener('keydown', e => {
+      keys[e.key] = true;
+    });
+    document.addEventListener('keyup', e => {
+      keys[e.key] = false;
+    });
+
+    // Utility: convert a hex colour string to an RGBA string with given alpha
+    function hexToRGBA(hex, alpha) {
+      const cleanHex = hex.replace('#', '');
+      const value = parseInt(cleanHex, 16);
+      const r = (value >> 16) & 255;
+      const g = (value >> 8) & 255;
+      const b = value & 255;
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+
+    // Reset the ball to the centre with randomised direction
+    function resetBall() {
+      ballX = WIDTH / 2;
+      ballY = HEIGHT / 2;
+      // Randomly flip direction
+      ballVX = 4 * (Math.random() > 0.5 ? 1 : -1);
+      ballVY = 3 * (Math.random() > 0.5 ? 1 : -1);
+      trailPositions.length = 0;
+    }
+
+    // Main game loop
+    function draw() {
+      // Paddle movement speed
+      const paddleSpeed = 5;
+      // Keyboard controls – W/S move left paddle, arrows move right paddle
+      if (keys['w'] || keys['W']) leftY -= paddleSpeed;
+      if (keys['s'] || keys['S']) leftY += paddleSpeed;
+      if (keys['ArrowUp']) rightY -= paddleSpeed;
+      if (keys['ArrowDown']) rightY += paddleSpeed;
+      // Clamp paddles to the play area
+      leftY = Math.max(0, Math.min(HEIGHT - paddleHeight, leftY));
+      rightY = Math.max(0, Math.min(HEIGHT - paddleHeight, rightY));
+
+      // Move the ball
+      ballX += ballVX;
+      ballY += ballVY;
+      // Bounce off top and bottom
+      if (ballY < 0 || ballY > HEIGHT) {
+        ballVY = -ballVY;
+      }
+      // Bounce off left paddle or score
+      if (ballX < paddleWidth + 10) {
+        if (ballY > leftY && ballY < leftY + paddleHeight) {
+          ballVX = -ballVX;
+          ballX = paddleWidth + 10;
+        } else {
+          rightScore++;
+          resetBall();
+        }
+      }
+      // Bounce off right paddle or score
+      if (ballX > WIDTH - paddleWidth - 10) {
+        if (ballY > rightY && ballY < rightY + paddleHeight) {
+          ballVX = -ballVX;
+          ballX = WIDTH - paddleWidth - 10;
+        } else {
+          leftScore++;
+          resetBall();
+        }
+      }
+
+      // Record trail positions for fading effect
+      if (controls.trail.checked) {
+        trailPositions.push({ x: ballX, y: ballY });
+        if (trailPositions.length > trailMax) {
+          trailPositions.shift();
+        }
+      } else {
+        trailPositions.length = 0;
+      }
+
+      // Clear or fade the background
+      if (controls.trail.checked) {
+        // Draw a semi‑transparent black rectangle to slowly fade previous frames
+        ctx.fillStyle = 'rgba(0,0,0,0.25)';
+        ctx.fillRect(0, 0, WIDTH, HEIGHT);
+      } else {
+        ctx.clearRect(0, 0, WIDTH, HEIGHT);
+      }
+
+      // Draw the trail behind the ball
+      if (controls.trail.checked) {
+        for (let i = 0; i < trailPositions.length; i++) {
+          const pos = trailPositions[i];
+          const alpha = (i + 1) / trailPositions.length;
+          ctx.fillStyle = hexToRGBA(controls.ballColor.value, alpha * 0.6);
+          ctx.beginPath();
+          ctx.arc(pos.x, pos.y, 6, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      // Draw paddles
+      ctx.fillStyle = controls.leftColor.value;
+      ctx.fillRect(10, leftY, paddleWidth, paddleHeight);
+      ctx.fillStyle = controls.rightColor.value;
+      ctx.fillRect(WIDTH - paddleWidth - 10, rightY, paddleWidth, paddleHeight);
+      // Draw the ball
+      ctx.fillStyle = controls.ballColor.value;
+      ctx.beginPath();
+      ctx.arc(ballX, ballY, 8, 0, Math.PI * 2);
+      ctx.fill();
+      // Draw scores
+      ctx.fillStyle = '#fff';
+      ctx.font = '20px sans-serif';
+      ctx.fillText(leftScore, WIDTH / 4, 30);
+      ctx.fillText(rightScore, WIDTH * 3 / 4, 30);
+
+      // Schedule next frame
+      requestAnimationFrame(draw);
+    }
+
+    // Support for touch controls: move paddles with finger
+    canvas.addEventListener('touchmove', function (e) {
+      const rect = canvas.getBoundingClientRect();
+      for (const t of e.touches) {
+        const x = t.clientX - rect.left;
+        const y = t.clientY - rect.top;
+        if (x < WIDTH / 2) {
+          leftY = y - paddleHeight / 2;
+          leftY = Math.max(0, Math.min(HEIGHT - paddleHeight, leftY));
+        } else {
+          rightY = y - paddleHeight / 2;
+          rightY = Math.max(0, Math.min(HEIGHT - paddleHeight, rightY));
+        }
+      }
+      e.preventDefault();
+    }, { passive: false });
+
+    // Start the game loop
+    resetBall();
+    draw();
+  </script>
+</body>
+</html>
